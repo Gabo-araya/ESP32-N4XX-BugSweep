@@ -50,6 +50,16 @@ pio run -t upload && pio device monitor
 
 Si la subida se queda en `Connecting...`, mantén apretado el botón **BOOT** hasta que empiece a escribir.
 
+## Tabla de fabricantes (OUI)
+
+`src/rules/oui_tabla.h` se genera a partir del registro público del IEEE:
+
+```bash
+python3 -I tools/generar_oui.py
+```
+
+Para agregar un fabricante, edita la lista `FABRICANTES` del script y vuelve a ejecutarlo.
+
 ## Documentación
 
 | Documento | Contenido |

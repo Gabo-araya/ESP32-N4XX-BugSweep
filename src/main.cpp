@@ -1,110 +1,82 @@
-// Fase 2: escáner WiFi pasivo con lista en pantalla.
-//   BOOT corto: bajar en la lista (vuelve al inicio al final)
-//   BOOT largo: nuevo barrido
+// Fase 3: escáner WiFi pasivo continuo + reglas de sospecha.
+//   Lista:   BOOT corto = siguiente red   | BOOT largo = ver detalle
+//   Detalle: BOOT corto o largo = volver a la lista
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <algorithm>
 #include "ui/boton.h"
+#include "ui/vistas.h"
 #include "wifi/escaner_wifi.h"
+#include "rules/sospecha.h"
 
-constexpr uint8_t PIN_BOTON = 0;      // BOOT, junto al USB-C
-constexpr int ALTO_FILA = 18;         // fuente 2 = 16 px + 2 de separación
-constexpr int Y_LISTA = 24;           // bajo la barra de estado
-constexpr int Y_AYUDA = 170 - 16;     // última línea de la pantalla
-constexpr int FILAS = (Y_AYUDA - Y_LISTA) / ALTO_FILA;  // filas visibles
+constexpr uint8_t PIN_BOTON = 0;   // BOOT, junto al USB-C
 
 TFT_eSPI tft;
 Boton boton(PIN_BOTON);
 EscanerWifi escaner;
-size_t primera = 0;   // índice de la primera red visible
 
-// Barras de señal 0..4: el número en dBm se muestra igual, la barra es solo apoyo visual.
-uint8_t barras(int8_t rssi) {
-  if (rssi >= -55) return 4;
-  if (rssi >= -67) return 3;
-  if (rssi >= -75) return 2;
-  if (rssi >= -85) return 1;
-  return 0;
+enum class Vista { LISTA, DETALLE };
+Vista vista = Vista::LISTA;
+std::vector<Hallazgo> hallazgos;
+size_t seleccion = 0;
+
+size_t contarSospechosas() {
+  return std::count_if(hallazgos.begin(), hallazgos.end(),
+                       [](const Hallazgo &h) { return h.eval.nivel >= Nivel::MEDIO; });
 }
 
-void dibujarBarras(int x, int y, uint8_t nivel) {
-  for (uint8_t i = 0; i < 4; i++) {
-    const int h = 4 + i * 3;
-    const int bx = x + i * 5, by = y + 14 - h;
-    if (i < nivel) tft.fillRect(bx, by, 4, h, TFT_WHITE);
-    else           tft.drawRect(bx, by, 4, h, TFT_DARKGREY);
+// Primera fila visible: la "página" que contiene la selección.
+size_t primeraFila() { return seleccion - seleccion % vistas::FILAS; }
+
+void dibujar() {
+  if (vista == Vista::LISTA) {
+    vistas::barraEstado(tft, hallazgos.size(), contarSospechosas(), escaner.barridos(), escaner.escaneando());
+    vistas::lista(tft, hallazgos, primeraFila(), seleccion);
+    vistas::ayuda(tft, "Corto: siguiente   Largo: detalle");
+  } else {
+    vistas::detalle(tft, hallazgos[seleccion]);
+    vistas::ayuda(tft, "Pulsa para volver   (se actualiza solo)");
   }
-}
-
-void dibujarEstado() {
-  tft.fillRect(0, 0, tft.width(), Y_LISTA - 2, TFT_NAVY);
-  tft.setTextFont(2);
-  tft.setTextColor(TFT_YELLOW, TFT_NAVY);
-  String s = escaner.escaneando()
-                 ? String("Escuchando canales 1-13...")
-                 : String("Redes: ") + escaner.redes().size() + "  barrido #" + escaner.barridos();
-  tft.drawString(s, 6, 3);
-}
-
-void dibujarLista() {
-  const auto &redes = escaner.redes();
-  tft.fillRect(0, Y_LISTA, tft.width(), FILAS * ALTO_FILA, TFT_BLACK);
-  tft.setTextFont(2);
-
-  if (redes.empty()) {
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(escaner.escaneando() ? "Esperando resultados..." : "No se encontraron redes", 6, Y_LISTA + 4);
-    return;
-  }
-
-  for (int f = 0; f < FILAS && primera + f < redes.size(); f++) {
-    const RedWifi &r = redes[primera + f];
-    const int y = Y_LISTA + f * ALTO_FILA;
-
-    dibujarBarras(4, y, barras(r.rssi));
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(String(r.rssi), 28, y);                 // dBm
-    tft.setTextColor(TFT_CYAN, TFT_BLACK);
-    tft.drawString(String("c") + r.canal, 60, y);          // canal
-
-    // Red oculta: texto distinto + color, nunca solo color.
-    String nombre = r.oculta() ? String("<oculta>") : r.ssid;
-    if (r.abierta) nombre = "(abierta) " + nombre;
-    if (nombre.length() > 26) nombre = nombre.substring(0, 25) + "~";
-    tft.setTextColor(r.oculta() ? TFT_YELLOW : TFT_WHITE, TFT_BLACK);
-    tft.drawString(nombre, 92, y);
-  }
-}
-
-void dibujarAyuda() {
-  tft.fillRect(0, Y_AYUDA, tft.width(), 16, TFT_BLACK);
-  tft.setTextFont(2);
-  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  const size_t total = escaner.redes().size();
-  String pos = total ? String(primera + 1) + "-" + min(primera + FILAS, total) + "/" + total : "";
-  tft.drawString("Corto: bajar  Largo: re-escanear", 6, Y_AYUDA);
-  tft.drawRightString(pos, tft.width() - 4, Y_AYUDA, 2);
-}
-
-void dibujarTodo() {
-  dibujarEstado();
-  dibujarLista();
-  dibujarAyuda();
 }
 
 void imprimirSerie() {
-  Serial.printf("[wifi] barrido #%lu: %u redes\n", (unsigned long)escaner.barridos(),
-                (unsigned)escaner.redes().size());
-  for (const RedWifi &r : escaner.redes()) {
-    Serial.printf("  %4d dBm  c%-2u  %02X:%02X:%02X:%02X:%02X:%02X  %s%s\n", r.rssi, r.canal,
-                  r.bssid[0], r.bssid[1], r.bssid[2], r.bssid[3], r.bssid[4], r.bssid[5],
-                  r.abierta ? "(abierta) " : "", r.oculta() ? "<oculta>" : r.ssid.c_str());
+  Serial.printf("[wifi] barrido #%lu: %u redes, %u sospechosas\n", (unsigned long)escaner.barridos(),
+                (unsigned)hallazgos.size(), (unsigned)contarSospechosas());
+  for (const Hallazgo &h : hallazgos) {
+    const uint8_t *m = h.red.bssid;
+    Serial.printf("  %-2s %3u  %4d dBm  c%-2u  %02X:%02X:%02X:%02X:%02X:%02X  %-12s %s\n",
+                  simboloNivel(h.eval.nivel), h.eval.puntaje, h.red.rssi, h.red.canal,
+                  m[0], m[1], m[2], m[3], m[4], m[5],
+                  h.eval.macAleatoria ? "(aleatoria)" : h.eval.fabricante.nombre ? h.eval.fabricante.nombre : "-",
+                  h.red.oculta() ? "<oculta>" : h.red.ssid.c_str());
+    for (uint8_t i = 0; i < h.eval.nMotivos; i++) Serial.printf("        - %s\n", h.eval.motivos[i]);
   }
 }
 
-void nuevoBarrido() {
-  escaner.iniciar();
-  dibujarEstado();
-  Serial.println("[wifi] escuchando (pasivo)...");
+// Reconstruye la lista con el último barrido, manteniendo seleccionada la misma red.
+void procesarBarrido() {
+  uint8_t bssidSel[6] = {};
+  const bool habiaSel = seleccion < hallazgos.size();
+  if (habiaSel) memcpy(bssidSel, hallazgos[seleccion].red.bssid, 6);
+
+  hallazgos.clear();
+  for (const RedWifi &r : escaner.redes()) hallazgos.push_back({r, evaluarRed(r.ssid, r.bssid)});
+
+  // Más sospechosas primero; a igual puntaje, la señal más fuerte.
+  std::stable_sort(hallazgos.begin(), hallazgos.end(), [](const Hallazgo &a, const Hallazgo &b) {
+    return a.eval.puntaje != b.eval.puntaje ? a.eval.puntaje > b.eval.puntaje : a.red.rssi > b.red.rssi;
+  });
+
+  seleccion = 0;
+  if (habiaSel) {
+    for (size_t i = 0; i < hallazgos.size(); i++)
+      if (memcmp(hallazgos[i].red.bssid, bssidSel, 6) == 0) { seleccion = i; break; }
+  }
+  // Si la red del detalle desapareció, volver a la lista.
+  if (vista == Vista::DETALLE && (hallazgos.empty() || (habiaSel && memcmp(hallazgos[seleccion].red.bssid, bssidSel, 6)))) {
+    vista = Vista::LISTA;
+    tft.fillScreen(TFT_BLACK);
+  }
 }
 
 void setup() {
@@ -114,35 +86,33 @@ void setup() {
   tft.init();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
-
   escaner.begin();
-  dibujarTodo();
-  nuevoBarrido();
+  Serial.printf("[bugsweep] tabla OUI: %u prefijos\n", totalPrefijosOui());
+  escaner.iniciar();
+  dibujar();
 }
 
 void loop() {
   if (escaner.actualizar()) {
-    primera = 0;
-    dibujarTodo();
+    procesarBarrido();
     imprimirSerie();
+    dibujar();
   }
+  if (!escaner.escaneando()) escaner.iniciar();   // escaneo continuo (también reintenta si un barrido falla)
 
-  switch (boton.leer()) {
-    case Boton::Evento::Corto: {
-      const size_t total = escaner.redes().size();
-      if (total > FILAS) {
-        primera += FILAS;
-        if (primera >= total) primera = 0;   // vuelve al inicio
-        dibujarLista();
-        dibujarAyuda();
-      }
-      break;
+  const Boton::Evento ev = boton.leer();
+  if (ev == Boton::Evento::Ninguno) { delay(5); return; }
+
+  if (vista == Vista::LISTA) {
+    if (hallazgos.empty()) return;
+    if (ev == Boton::Evento::Corto) {
+      seleccion = (seleccion + 1) % hallazgos.size();
+    } else {
+      vista = Vista::DETALLE;
     }
-    case Boton::Evento::Largo:
-      nuevoBarrido();
-      break;
-    case Boton::Evento::Ninguno:
-      break;
+  } else {
+    vista = Vista::LISTA;
   }
-  delay(5);
+  tft.fillScreen(TFT_BLACK);
+  dibujar();
 }

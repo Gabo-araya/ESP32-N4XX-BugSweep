@@ -118,3 +118,5 @@ Editor: VS Code con la extensión **PlatformIO IDE**.
 | 2026-11-07 | Una foto confirma la pantalla: 170×320, colores RGB correctos, sin inversión y sin desplazamiento. **Paso 1 cerrado.** |
 | 2026-11-07 | Paso 1b cerrado: módulo `Boton` reutilizable (antirrebote y pulsación corta/larga). El repositorio se publica en GitHub. |
 | 2026-11-07 | Fase 2: escáner WiFi **pasivo** (`scanNetworks(async, ocultas, pasivo=true, 300 ms/canal)`). **Decisión:** no se usa escaneo activo, porque emite *probe requests* (contradice el diseño solo receptor del PRD y delata al dispositivo). |
+| 2026-11-07 | Fase 2 cerrada: las redes se ven en la placa. |
+| 2026-11-07 | Fase 3: reglas de sospecha. **Decisiones:** (1) la tabla OUI se **genera** desde el registro oficial del IEEE (`tools/generar_oui.py`) y nunca se escribe a mano; (2) puntaje = mejor patrón de SSID + categoría del fabricante (cámara 60, chip de cámara 35, IoT 15) + red oculta (15), con tope de 100; (3) las MAC localmente administradas se marcan como "aleatorias" porque no tienen fabricante; (4) el texto en pantalla va sin tildes, porque las fuentes integradas de TFT_eSPI solo tienen ASCII. |

@@ -21,16 +21,18 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 - **Aprendes:** `setup()` y `loop()`, el bus SPI, `platformio.ini` y la lectura de entradas digitales.
 
 ## Fase 2 — Escáner WiFi
-- 🟡 Listar las redes con SSID, canal y RSSI, ordenadas por intensidad de señal, usando **escaneo pasivo** (`src/wifi/escaner_wifi.*`).
-- 🟡 Desplazarse por la lista con el botón: corto para bajar, largo para escanear de nuevo.
-- 🟡 Marcar las redes ocultas y las abiertas.
+- ✅ Listar las redes con SSID, canal y RSSI, ordenadas por intensidad de señal, usando **escaneo pasivo** (`src/wifi/escaner_wifi.*`).
+- ✅ Desplazarse por la lista con el botón: corto para bajar, largo para escanear de nuevo.
+- ✅ Marcar las redes ocultas y las abiertas.
 - ⬜ **Antes de la fase 6:** cambiar a la tabla de particiones `huge_app.csv`. Con el WiFi, el programa ya ocupa el 59 % de los 1.25 MB disponibles, y el stack de BLE suma unos 400 a 500 KB.
 - **Aprendes:** `WiFi.scanNetworks()`, qué es el RSSI (en dBm) y qué son los canales de 2.4 GHz.
 
 ## Fase 3 — Reglas de sospecha
-- ⬜ Lista de patrones de SSID de cámaras (`HDWiFiCam`, `IPC`, `MV`, `CAM`, …).
-- ⬜ Tabla OUI reducida (fabricantes de cámaras y de chips IoT) guardada en `PROGMEM`.
-- ⬜ Indicadores accesibles en pantalla: símbolo + texto + color.
+- 🟡 Lista de patrones de SSID de cámaras, con puntaje y motivo (`src/rules/sospecha.cpp`).
+- 🟡 Tabla OUI generada desde el registro oficial del IEEE con `tools/generar_oui.py`: 757 prefijos de 24 fabricantes, en flash.
+- 🟡 Puntaje de 0 a 100 con sus motivos. Niveles `!!` ALTA, `!` MEDIA y `?` BAJA (símbolo + texto + color).
+- 🟡 Escaneo continuo, cursor y vista de detalle que se actualiza sola.
+- ⬜ Calibrar los pesos con dispositivos reales (cámara de prueba y redes del entorno).
 - **Aprendes:** qué es un OUI, la memoria flash frente a la RAM, y cómo separar los datos del código.
 
 ## Fase 4 — Modo promiscuo
