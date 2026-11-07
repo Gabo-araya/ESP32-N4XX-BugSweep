@@ -26,6 +26,7 @@ public:
 
   void iniciar();              // la primera vez inicializa NimBLE
   void detener();
+  void limpiar() { dispositivos_.clear(); }   // olvidar todo lo visto
   bool activo() const { return activo_; }
 
   // Llamar en cada loop(). true = hay algo nuevo que dibujar (lista cada 2 s,

@@ -205,6 +205,71 @@ void rastreo(TFT_eSPI &tft, TFT_eSprite &g, const Seguimiento &s, bool conTrafic
   tft.setTextPadding(0);
 }
 
+void inicio(TFT_eSPI &tft, const char *version) {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextFont(4);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawString("BugSweep", 6, 4);
+  tft.setTextFont(2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawRightString(String("v") + version, tft.width() - 6, 10, 2);
+  tft.setTextFont(2);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString("Detector pasivo de camaras,", 6, 34);
+  tft.drawString("microfonos y rastreadores.", 6, 52);
+
+  // Las dos opciones, con el gesto escrito en palabras.
+  tft.drawRect(4, 76, tft.width() - 8, 34, TFT_YELLOW);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawString("MANTEN apretado: revision guiada", 10, 78);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString("(recomendado, ~1 minuto)", 10, 93);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawString("Toque corto: modo experto", 10, 118);
+  ayuda(tft, "Solo escucha: no transmite nada.");
+}
+
+void progresoRevision(TFT_eSPI &tft, uint8_t paso, uint8_t total, const char *titulo, const char *l1,
+                      const char *l2, float fraccion, size_t encontrados, size_t sospechosos) {
+  barraEstado(tft, String("REVISION  paso ") + (paso + 1) + " de " + total, "");
+  tft.setTextPadding(tft.width() - 12);
+  tft.setTextFont(4);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(titulo, 6, 28);
+  tft.setTextFont(2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawString(l1, 6, 58);
+  tft.drawString(l2, 6, 74);
+
+  // Barra de progreso con el porcentaje escrito.
+  const int bx = 6, by = 98, bw = tft.width() - 12, bh = 16;
+  tft.fillRect(bx, by, bw, bh, TFT_BLACK);
+  tft.fillRect(bx, by, (int)(bw * fraccion), bh, TFT_YELLOW);
+  tft.drawRect(bx, by, bw, bh, TFT_WHITE);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(String((int)(fraccion * 100)) + " %", 6, 118);
+
+  tft.setTextColor(sospechosos ? TFT_MAGENTA : TFT_WHITE, TFT_BLACK);
+  tft.drawString(String("Vistos: ") + encontrados + "   Sospechosos: " + sospechosos + (sospechosos ? " !" : ""), 6, 134);
+  tft.setTextPadding(0);
+  ayuda(tft, "Pulsa para cancelar");
+}
+
+void revisionLimpia(TFT_eSPI &tft) {
+  tft.fillScreen(TFT_BLACK);
+  barraEstado(tft, "RESULTADO", "");
+  tft.setTextFont(4);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString("OK  Nada sospechoso", 6, 28);
+  tft.setTextFont(2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawString("No garantiza que no haya nada:", 6, 60);
+  tft.drawString("- camaras sin WiFi, en 5 GHz o solo SD", 6, 78);
+  tft.drawString("- microfonos de radio analogica/GSM", 6, 96);
+  tft.drawString("Busca lentes con la linterna del celular.", 6, 120);
+  ayuda(tft, "Pulsa para volver al inicio");
+}
+
 void ayuda(TFT_eSPI &tft, const char *texto) {
   tft.fillRect(0, Y_AYUDA, tft.width(), 16, TFT_BLACK);
   tft.setTextFont(2);

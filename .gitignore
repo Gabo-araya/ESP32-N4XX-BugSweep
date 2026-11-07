@@ -12,3 +12,9 @@ docs/*_files/
 
 # Notas sueltas de trabajo
 docs/info_claude.md
+
+# Binarios de versión (se suben a GitHub Releases, no al repo)
+dist/
+
+# Capturas de terreno: contienen MAC y nombres de redes de terceros
+capturas/

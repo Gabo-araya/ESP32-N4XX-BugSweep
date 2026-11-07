@@ -44,6 +44,7 @@ public:
   // canalFijo > 0: se queda en ese canal (rastreo: escucha el 100 % del tiempo).
   void iniciar(uint8_t canalFijo = 0);
   void detener();
+  void limpiar() { estaciones_.clear(); aps_.clear(); }   // olvidar todo lo visto
   Seguimiento &seguimiento() { return seguimiento_; }
   const Seguimiento &seguimiento() const { return seguimiento_; }
   bool activo() const { return activo_; }

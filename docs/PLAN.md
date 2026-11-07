@@ -65,12 +65,17 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 ## Fase 7 — Pulido
 - ⬜ Puntuación de sospecha (0–100) con sus motivos.
 - ⬜ Salida serie en JSON por línea.
-- ⬜ Revisión guiada para personas sin experiencia, paso a paso en la pantalla.
+- 🟡 Revisión guiada (`src/guia/`): pantalla de inicio (largo = revisión, corto = experto); 3 pasos automáticos (redes 12 s, dispositivos 27 s, BLE 15 s) con instrucción y barra de progreso; resultado unificado (nivel MEDIO o más) que abre el detalle del hallazgo; "OK Nada sospechoso" con advertencias sobre los límites.
+- ⬜ Validar con una persona sin experiencia (métrica 4 del PRD).
+- ✅ Manual de usuario (`docs/MANUAL.md`): incluye todos los motivos que muestra la pantalla, el rastreo, qué hacer si encuentras algo y la revisión manual. **Si cambian los textos o los umbrales de `src/rules/` o `src/guia/`, hay que actualizar el manual.**
 - ⬜ **Pendiente (requiere hardware):** pruebas de BLE con un AirTag, Tile o SmartTag.
 - ⬜ Pruebas con una cámara de referencia (un ESP32-CAM propio) y medición de las métricas del PRD.
 - ❌ ~~Integración continua con GitHub Actions~~: descartada por decisión del autor. En su lugar, el README tiene instrucciones completas para compilar.
 - ✅ README con instrucciones para compilar en Linux, Windows y macOS (VS Code y terminal), problemas frecuentes, guía de uso y estructura del código.
-- ⬜ Publicar la versión v1.0.
+- 🟡 **v0.9.0-beta**: versión en `platformio.ini`, visible en el inicio y en el monitor serie; marcas de tiempo en el monitor; `CHANGELOG.md`; binario único (`tools/empaquetar.sh`, verificado pieza por pieza); instalación sin compilar en el README. **Falta:** commit, etiqueta y publicación en GitHub Releases (las hace el autor).
+- ✅ Protocolo de pruebas de terreno (`docs/PRUEBAS.md`) y seudonimizador de capturas (`tools/anonimizar.py`).
+- ✅ Casos de prueba T01 a T28 y lista de dispositivos priorizada (`docs/instrucciones_test.md`).
+- ⬜ Publicar la v1.0 cuando pasen T03, T05, T06, T07, T20 y al menos un test de rastreador (T24 a T27).
 
 ## Organización del código (a medida que crezca)
 

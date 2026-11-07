@@ -5,10 +5,12 @@
 //   Lista:   corto = bajar el cursor | largo = abrir (detalle, o cambiar de modo en la 1.ª fila)
 //   Detalle: corto = volver          | largo = rastrear
 //   Rastreo: corto o largo = salir
+//   Inicio:  corto = modo experto    | largo = revisión guiada
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <algorithm>
 #include "ble/escaner_ble.h"
+#include "guia/revision.h"
 #include "rules/sospecha.h"
 #include "sniffer/sniffer.h"
 #include "ui/boton.h"
@@ -18,18 +20,30 @@
 
 constexpr uint8_t PIN_BOTON = 0;   // BOOT, junto al USB-C
 
+#ifndef BUGSWEEP_VERSION
+#define BUGSWEEP_VERSION "dev"
+#endif
+
+// Mensaje del monitor serie con los segundos desde el encendido, para cruzarlo con notas de terreno.
+#define LOG(fmt, ...) Serial.printf("[%5lus] " fmt, (unsigned long)(millis() / 1000), ##__VA_ARGS__)
+
 TFT_eSPI tft;
 TFT_eSprite grafico(&tft);   // gráfico del rastreo: se dibuja fuera de pantalla y se copia de una vez
 Boton boton(PIN_BOTON);
 EscanerWifi escaner;
 Sniffer sniffer;
 EscanerBle ble;
+Revision revision;
 
 enum class Modo : uint8_t { REDES, DISPOSITIVOS, BLUETOOTH };
 constexpr uint8_t TOTAL_MODOS = 3;
-enum class Vista { LISTA, DETALLE, RASTREO };
+// La revisión guiada recorre los pasos en este mismo orden (paso i = Modo(i)).
+static_assert((uint8_t)Modo::REDES == 0 && (uint8_t)Modo::DISPOSITIVOS == 1 && (uint8_t)Modo::BLUETOOTH == 2 &&
+                  Revision::PASOS == TOTAL_MODOS,
+              "Revision::PASOS debe seguir el orden de Modo");
+enum class Vista { INICIO, LISTA, DETALLE, RASTREO, REVISION, RESULTADO };
 Modo modo = Modo::REDES;
-Vista vista = Vista::LISTA;
+Vista vista = Vista::INICIO;
 
 struct Red { RedWifi red; Evaluacion eval; };
 struct Dispositivo { Estacion est; Evaluacion eval; };
@@ -38,7 +52,11 @@ std::vector<Red> redes;
 std::vector<Dispositivo> dispositivos;
 std::vector<Ble> bles;
 
-// Fila 0 = opción "cambiar de modo"; filas 1..n = elementos del modo actual.
+// Resultado de la revisión guiada: lo sospechoso de los tres modos, juntos.
+struct Resultado { Modo modo; uint8_t mac[6]; uint8_t puntaje; vistas::Fila fila; };
+std::vector<Resultado> resultados;
+
+// Fila 0 = opción de menú; filas 1..n = elementos (del modo actual o del resultado).
 size_t seleccion = 0;
 
 // ---------------------------------------------------------------- modelo ---
@@ -180,7 +198,8 @@ String minutos(uint32_t m) { return m ? String(m) + "m" : String("<1m"); }
 void dibujarLista() {
   std::vector<vistas::Fila> filas;
   vistas::Fila menu;
-  menu.nombre = String("> Cambiar a ") + nombreModo(siguienteModo());
+  menu.nombre = modo == Modo::BLUETOOTH ? String("> Volver al INICIO")
+                                        : String("> Cambiar a ") + nombreModo(siguienteModo());
   filas.push_back(menu);
 
   String izq, der;
@@ -251,8 +270,35 @@ const Seguimiento &seguimientoActivo() {
   return modo == Modo::BLUETOOTH ? ble.seguimiento() : sniffer.seguimiento();
 }
 
+void dibujarRevision() {
+  const PasoGuia &p = Revision::paso(revision.indice());
+  size_t sosp = 0;
+  switch (modo) {
+    case Modo::REDES:        sosp = contarSospechosos(redes); break;
+    case Modo::DISPOSITIVOS: sosp = contarSospechosos(dispositivos); break;
+    case Modo::BLUETOOTH:    sosp = contarSospechosos(bles); break;
+  }
+  vistas::progresoRevision(tft, revision.indice(), Revision::PASOS, p.titulo, p.linea1, p.linea2,
+                           revision.fraccion(), cantidad(), sosp);
+}
+
+void dibujarResultado() {
+  if (resultados.empty()) { vistas::revisionLimpia(tft); return; }
+  std::vector<vistas::Fila> filas;
+  vistas::Fila menu;
+  menu.nombre = "> Terminar (volver al INICIO)";
+  filas.push_back(menu);
+  for (const Resultado &r : resultados) filas.push_back(r.fila);
+  vistas::barraEstado(tft, String("RESULTADO  Sospechosos: ") + resultados.size(), "!");
+  vistas::lista(tft, filas, seleccion, nullptr);
+  vistas::ayuda(tft, "Corto: bajar   Largo: ver detalle");
+}
+
 void dibujar() {
   switch (vista) {
+    case Vista::INICIO:    vistas::inicio(tft, BUGSWEEP_VERSION); break;
+    case Vista::REVISION:  dibujarRevision(); break;
+    case Vista::RESULTADO: dibujarResultado(); break;
     case Vista::LISTA:   dibujarLista(); break;
     case Vista::DETALLE: dibujarDetalle(); break;
     case Vista::RASTREO: vistas::rastreo(tft, grafico, seguimientoActivo(), modo != Modo::BLUETOOTH); break;
@@ -262,7 +308,7 @@ void dibujar() {
 // ----------------------------------------------------------------- serie ---
 
 void imprimirRedes() {
-  Serial.printf("[redes] barrido #%lu: %u redes, %u sospechosas\n", (unsigned long)escaner.barridos(),
+  LOG("[redes] barrido #%lu: %u redes, %u sospechosas\n", (unsigned long)escaner.barridos(),
                 (unsigned)redes.size(), (unsigned)contarSospechosos(redes));
   for (const Red &r : redes)
     Serial.printf("  %-2s %3u  %4d dBm  c%-2u  %s  %-12s %s\n", simboloNivel(r.eval.nivel), r.eval.puntaje,
@@ -271,7 +317,7 @@ void imprimirRedes() {
 }
 
 void imprimirDispositivos() {
-  Serial.printf("[disp] ventana #%lu: %u dispositivos, %u sospechosos, %lu tramas descartadas\n",
+  LOG("[disp] ventana #%lu: %u dispositivos, %u sospechosos, %lu tramas descartadas\n",
                 (unsigned long)sniffer.ventanas(), (unsigned)dispositivos.size(),
                 (unsigned)contarSospechosos(dispositivos), (unsigned long)sniffer.descartadas());
   for (const Dispositivo &d : dispositivos)
@@ -283,7 +329,7 @@ void imprimirDispositivos() {
 }
 
 void imprimirBle() {
-  Serial.printf("[ble] %u dispositivos, %u sospechosos\n", (unsigned)bles.size(), (unsigned)contarSospechosos(bles));
+  LOG("[ble] %u dispositivos, %u sospechosos\n", (unsigned)bles.size(), (unsigned)contarSospechosos(bles));
   for (const Ble &b : bles)
     Serial.printf("  %-2s %3u  %4d dBm  %-5s  %s %s  %s\n", simboloNivel(b.eval.nivel), b.eval.puntaje, b.dev.rssi,
                   minutos(b.dev.minutosVisto()).c_str(), b.dev.publica ? "pub" : "ale",
@@ -305,7 +351,7 @@ void activarModo(Modo nuevo) {
     case Modo::BLUETOOTH:    ble.iniciar(); procesarBle(); break;
   }
   seleccion = 0;
-  Serial.printf("[bugsweep] modo %s (solo recepcion)\n", nombreModo(modo));
+  LOG("[bugsweep] modo %s (solo recepcion)\n", nombreModo(modo));
 }
 
 // Se queda escuchando solo al objetivo: canal fijo en WiFi, escaneo continuo en BLE.
@@ -330,7 +376,7 @@ void entrarRastreo() {
   }
   vista = Vista::RASTREO;
   vistas::prepararRastreo(tft, grafico, titulo, canal);
-  Serial.printf("[rastreo] %s canal %u (%s)\n", vistas::macTexto(mac).c_str(), canal, titulo.c_str());
+  LOG("[rastreo] %s canal %u (%s)\n", vistas::macTexto(mac).c_str(), canal, titulo.c_str());
 }
 
 // Vuelve al detalle y reanuda el modo en que estábamos.
@@ -343,7 +389,82 @@ void salirRastreo() {
     seleccion = sel;
   }
   vista = Vista::DETALLE;
-  Serial.println("[rastreo] fin");
+  LOG("[rastreo] fin\n");
+}
+
+void detenerRadios() {
+  escaner.detener();
+  sniffer.detener();
+  ble.detener();
+}
+
+void irInicio() {
+  revision.cancelar();
+  detenerRadios();
+  vista = Vista::INICIO;
+  seleccion = 0;
+}
+
+void iniciarRevision() {
+  // Partir de cero: que el resultado refleje solo este lugar y este momento.
+  sniffer.limpiar();
+  ble.limpiar();
+  redes.clear();
+  dispositivos.clear();
+  bles.clear();
+  revision.iniciar();
+  activarModo(Modo::REDES);
+  vista = Vista::REVISION;
+  LOG("[revision] inicio\n");
+}
+
+template <typename T, typename N>
+void agregarResultados(Modo m, const std::vector<T> &v, const char *etiqueta, N nombre) {
+  for (const T &x : v) {
+    if (x.eval.nivel < Nivel::MEDIO) continue;
+    Resultado r;
+    r.modo = m;
+    r.puntaje = x.eval.puntaje;
+    vistas::Fila f;
+    f.nivel = x.eval.nivel;
+    nombre(x, r.mac, f);
+    f.dato = etiqueta;
+    r.fila = f;
+    resultados.push_back(r);
+  }
+}
+
+void terminarRevision() {
+  detenerRadios();
+  revision.cancelar();
+  resultados.clear();
+  agregarResultados(Modo::REDES, redes, "WiFi", [](const Red &x, uint8_t *mac, vistas::Fila &f) {
+    memcpy(mac, x.red.bssid, 6); f.rssi = x.red.rssi; f.nombre = nombreRed(x.red);
+  });
+  agregarResultados(Modo::DISPOSITIVOS, dispositivos, "Disp", [](const Dispositivo &x, uint8_t *mac, vistas::Fila &f) {
+    memcpy(mac, x.est.mac, 6); f.rssi = x.est.rssi; f.nombre = nombreDispositivo(x);
+  });
+  agregarResultados(Modo::BLUETOOTH, bles, "BLE", [](const Ble &x, uint8_t *mac, vistas::Fila &f) {
+    memcpy(mac, x.dev.mac, 6); f.rssi = x.dev.rssi; f.nombre = nombreBle(x);
+  });
+  std::stable_sort(resultados.begin(), resultados.end(),
+                   [](const Resultado &a, const Resultado &b) { return a.puntaje > b.puntaje; });
+  seleccion = 0;
+  vista = Vista::RESULTADO;
+
+  LOG("[revision] fin: %u sospechosos\n", (unsigned)resultados.size());
+  for (const Resultado &r : resultados)
+    Serial.printf("  %-2s %3u  %-4s  %s  %s\n", simboloNivel(r.fila.nivel), r.puntaje, r.fila.dato.c_str(),
+                  vistas::macTexto(r.mac).c_str(), r.fila.nombre.c_str());
+}
+
+// Desde el resultado: abre el detalle del hallazgo en su modo (desde ahí se puede rastrear).
+void abrirResultado(size_t i) {
+  const Resultado r = resultados[i];
+  activarModo(r.modo);
+  vista = Vista::LISTA;
+  for (size_t k = 0; k < cantidad(); k++)
+    if (memcmp(macDe(k), r.mac, 6) == 0) { seleccion = k + 1; vista = Vista::DETALLE; break; }
 }
 
 void setup() {
@@ -357,8 +478,9 @@ void setup() {
   radio::iniciar();
   escaner.begin();
   sniffer.begin();
-  Serial.printf("[bugsweep] tabla OUI: %u prefijos\n", totalPrefijosOui());
-  activarModo(Modo::REDES);
+  LOG("[bugsweep] ESP32-N4XX-BugSweep v%s\n", BUGSWEEP_VERSION);
+  LOG("[bugsweep] tabla OUI: %u prefijos\n", totalPrefijosOui());
+  irInicio();
   dibujar();
 }
 
@@ -369,11 +491,11 @@ void loop() {
     const bool nueva = modo == Modo::BLUETOOTH ? ble.actualizar() : sniffer.actualizar();
     if (nueva) {   // una muestra cada 250 ms
       const Seguimiento &s = seguimientoActivo();
-      Serial.printf("[rastreo] %4d dBm  tend %+d  ahora %6.0f B/s  base %6.0f B/s%s\n", s.rssi(),
+      LOG("[rastreo] %4d dBm  tend %+d  ahora %6.0f B/s  base %6.0f B/s%s\n", s.rssi(),
                     s.tendencia(), s.bpsActual(), s.bpsBase(), s.pico() ? "  PICO" : "");
       redibujar = true;
     }
-  } else {
+  } else if (vista == Vista::LISTA || vista == Vista::DETALLE || vista == Vista::REVISION) {
     switch (modo) {
       case Modo::REDES:
         if (escaner.actualizar()) { procesarRedes(); imprimirRedes(); redibujar = true; }
@@ -388,10 +510,35 @@ void loop() {
     }
   }
 
+  if (vista == Vista::REVISION) {
+    if (revision.avanzar()) {
+      if (revision.terminada()) terminarRevision();
+      else activarModo(Modo(revision.indice()));   // los pasos siguen el orden de Modo
+      tft.fillScreen(TFT_BLACK);
+      redibujar = true;
+    }
+    static uint32_t tBarra = 0;                     // la barra de progreso avanza 2 veces por segundo
+    if (millis() - tBarra >= 500) { tBarra = millis(); redibujar = true; }
+  }
+
   const Boton::Evento ev = boton.leer();
   if (ev != Boton::Evento::Ninguno) {
     bool limpiar = true;   // prepararRastreo() ya limpia y dibuja su propio marco
     switch (vista) {
+      case Vista::INICIO:
+        if (ev == Boton::Evento::Largo) iniciarRevision();
+        else { activarModo(Modo::REDES); vista = Vista::LISTA; }
+        break;
+      case Vista::REVISION:
+        LOG("[revision] cancelada\n");
+        irInicio();
+        break;
+      case Vista::RESULTADO:
+        if (resultados.empty()) irInicio();
+        else if (ev == Boton::Evento::Corto) seleccion = (seleccion + 1) % (resultados.size() + 1);
+        else if (seleccion == 0) irInicio();
+        else abrirResultado(seleccion - 1);
+        break;
       case Vista::RASTREO:
         salirRastreo();
         break;
@@ -401,7 +548,10 @@ void loop() {
         break;
       case Vista::LISTA:
         if (ev == Boton::Evento::Corto) seleccion = (seleccion + 1) % (cantidad() + 1);
-        else if (seleccion == 0) activarModo(siguienteModo());
+        else if (seleccion == 0) {
+          if (modo == Modo::BLUETOOTH) irInicio();
+          else activarModo(siguienteModo());
+        }
         else vista = Vista::DETALLE;
         break;
     }

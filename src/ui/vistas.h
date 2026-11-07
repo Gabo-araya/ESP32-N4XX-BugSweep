@@ -38,6 +38,12 @@ void prepararRastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const String &titulo, 
 void rastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const Seguimiento &s, bool conTrafico);
 constexpr int GRAF_X = 132, GRAF_Y = 26, GRAF_W = 184, GRAF_H = 94;
 
+// Revisión guiada
+void inicio(TFT_eSPI &tft, const char *version);
+void progresoRevision(TFT_eSPI &tft, uint8_t paso, uint8_t total, const char *titulo, const char *linea1,
+                      const char *linea2, float fraccion, size_t encontrados, size_t sospechosos);
+void revisionLimpia(TFT_eSPI &tft);   // resultado sin hallazgos
+
 // Utilidades de formato compartidas
 String macTexto(const uint8_t m[6]);
 String tasaCorta(float bytesPorSegundo);   // "850", "12k", "1.2M"

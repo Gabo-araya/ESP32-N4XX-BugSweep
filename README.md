@@ -4,7 +4,7 @@
 
 Este firmware convierte una placa ESP32 barata con pantalla LCD en un detector de bolsillo. **Solo escucha** el tráfico WiFi de 2.4 GHz y Bluetooth LE, y ayuda a identificar y ubicar cámaras, micrófonos y rastreadores ocultos que transmiten.
 
-> **Estado:** fases 1 a 6 implementadas y en validación. Ver el [plan de trabajo](docs/PLAN.md).
+> **Estado:** v0.9.0-beta. Funciones completas; umbrales en calibración. Ver el [plan de trabajo](docs/PLAN.md) y el [CHANGELOG](CHANGELOG.md).
 
 ## Qué hace y qué no hace
 
@@ -25,7 +25,10 @@ Un resultado limpio **no garantiza** que no haya dispositivos ocultos. Complemen
   - Chip ESP32-D0WD-V3 y 4 MB de flash.
   - Pantalla ST7789 de 170×320 píxeles.
 - Cable USB-C **de datos**. Muchos cables baratos solo sirven para cargar y no transmiten datos.
-- Para usarlo en la calle: cualquier batería externa (*power bank*) con salida USB.
+- Para usarlo en la calle: una batería externa (*power bank*) o **el teléfono**:
+  - **Android**: cable USB-C a USB-C. Si no enciende, usa un adaptador **OTG** (USB-C macho a USB-A hembra) con un cable A→C; en algunos modelos hay que activar "OTG" en Ajustes.
+  - **iPhone 15 o posterior**: cable USB-C a USB-C.
+  - La app gratuita **Serial USB Terminal** (Android, a 115200 baudios) convierte el teléfono en monitor serie.
 
 Todas las especificaciones, el pinout y el firmware de fábrica están en la [ficha del dispositivo](docs/FICHA_DISPOSITIVO.md).
 
@@ -33,31 +36,30 @@ Todas las especificaciones, el pinout y el firmware de fábrica están en la [fi
 
 ## Uso
 
-Todo se maneja con el botón **BOOT**, el que está junto al conector USB-C:
+📖 **[Manual de usuario completo](docs/MANUAL.md)**: revisión guiada, cómo interpretar los resultados, rastreo, qué hacer si encuentras algo y revisión manual complementaria.
 
-| Pantalla | Pulsación corta (< 0.6 s) | Pulsación larga (≥ 0.6 s) |
-|---|---|---|
-| **Lista** | Bajar el cursor (el marco amarillo) | Abrir la fila seleccionada |
-| **Detalle** | Volver a la lista | Iniciar el **rastreo** |
-| **Rastreo** | Salir | Salir |
-
-La **primera fila** de cada lista sirve para cambiar de modo: **REDES** → **DISPOSITIVOS** → **BLUETOOTH**.
-
-| Modo | Qué muestra | Columna corta |
-|---|---|---|
-| REDES | Puntos de acceso WiFi. Detecta cámaras que crean su propia red | Canal (`c6`) |
-| DISPOSITIVOS | Equipos conectados a cualquier red, con su tráfico | Bytes por segundo que **sube** |
-| BLUETOOTH | Dispositivos BLE y rastreadores | Minutos que lleva visible |
-
-**Niveles de sospecha**, siempre con un símbolo además del color: `!!` alta · `!` media · `?` baja.
-
-**Rastreo**: el aparato se queda escuchando solo al objetivo.
-- **Localizador**: camina siguiendo "MAS CERCA" o "MAS LEJOS".
-- **Correlación** (solo WiFi): espera unos 5 segundos a que mida la base y mueve la mano frente al objeto sospechoso. Si es una cámara que transmite, su tráfico sube y aparece **"!! PICO"**.
-
-El monitor serie, a 115200 baudios, muestra todo con más detalle: direcciones MAC completas, puntajes y motivos.
+Resumen rápido: todo se maneja con el botón **BOOT**, el que está junto al USB-C. Un **toque corto** avanza y una **pulsación larga** elige. Al encender, mantén apretado el botón para hacer una **revisión guiada** de ~1 minuto.
 
 ---
+
+## Instalar sin compilar
+
+Cada versión publicada incluye un **binario único** en [Releases](https://github.com/Gabo-araya/ESP32-N4XX-BugSweep/releases), por ejemplo `bugsweep-v0.9.0-beta-esp32-lcd19.bin`, que se escribe en la dirección `0x0`.
+
+**Desde el navegador** (Chrome o Edge, sin instalar nada):
+1. Abre [ESP Tool web de Espressif](https://espressif.github.io/esptool-js/) y conecta la placa.
+2. **Connect**, elige el puerto (CH340 / USB Serial).
+3. En **Flash Address** escribe `0x0`, elige el `.bin` y presiona **Program**.
+
+**Desde la terminal**:
+
+```bash
+uvx esptool --port /dev/ttyUSB0 write-flash 0x0 bugsweep-v0.9.0-beta-esp32-lcd19.bin
+```
+
+Comprueba la descarga con el archivo `.sha256` publicado junto al binario: `sha256sum -c bugsweep-v0.9.0-beta-esp32-lcd19.bin.sha256`.
+
+> Igual necesitas el driver CH340 en Windows y el grupo `dialout` en Linux (ver el paso 1 de abajo).
 
 ## Compilar e instalar
 
@@ -170,10 +172,13 @@ src/
   wifi/radio.h          inicio de la radio sin conectarse nunca
   sniffer/sniffer.*     modo promiscuo: estaciones y tráfico por canal
   sniffer/seguimiento.* rastreo: tendencia de la señal e historial de tráfico
+  guia/revision.*       revisión guiada: pasos, duraciones e instrucciones
   ble/escaner_ble.*     BLE pasivo y detección de rastreadores
   rules/sospecha.*      reglas y puntaje de sospecha
   rules/oui_tabla.h     tabla de fabricantes (GENERADA, no editar)
 tools/generar_oui.py    genera oui_tabla.h desde el registro del IEEE
+tools/empaquetar.sh     compila y genera el binario único de una versión
+tools/anonimizar.py     seudonimiza capturas de terreno antes de compartirlas
 ```
 
 ### Tabla de fabricantes (OUI)
@@ -198,14 +203,25 @@ nm -C .pio/build/esp32-lcd19/firmware.elf | grep -ciE "esp_wifi_80211_tx|ble_gap
 
 Si tu `nm` no reconoce el archivo (por ejemplo, en Windows), usa el que trae el compilador del ESP32: `~/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-nm`.
 
+### Publicar una versión
+
+1. Cambia `BUGSWEEP_VERSION` en `platformio.ini` y agrega la entrada en `CHANGELOG.md`.
+2. Genera el binario: `tools/empaquetar.sh` → `dist/bugsweep-v<versión>-esp32-lcd19.bin` y su `.sha256`.
+3. Haz commit, crea la etiqueta y súbela: `git tag -a v<versión> -m "..." && git push origin v<versión>`.
+4. En GitHub: **Releases → Draft a new release**, elige la etiqueta, pega la entrada del CHANGELOG y adjunta el `.bin` y el `.sha256`. Si es beta, marca **Set as a pre-release**.
+
 ## Documentación
 
 | Documento | Contenido |
 |---|---|
+| [docs/MANUAL.md](docs/MANUAL.md) | **Manual de usuario**: uso del aparato e interpretación de resultados |
 | [docs/FICHA_DISPOSITIVO.md](docs/FICHA_DISPOSITIVO.md) | Ficha técnica: chip, flash, radio, pantalla, GPIO y firmware de fábrica |
 | [docs/ANTECEDENTES.md](docs/ANTECEDENTES.md) | Hardware, decisiones, ruta de aprendizaje y bitácora |
 | [docs/PRD.md](docs/PRD.md) | Requisitos del producto |
 | [docs/PLAN.md](docs/PLAN.md) | Plan de trabajo por fases |
+| [docs/instrucciones_test.md](docs/instrucciones_test.md) | Casos de prueba (T01 a T28) y dispositivos para probar |
+| [docs/PRUEBAS.md](docs/PRUEBAS.md) | Cómo capturar, seudonimizar y compartir pruebas de terreno |
+| [CHANGELOG.md](CHANGELOG.md) | Historial de versiones |
 
 ## Uso responsable
 
