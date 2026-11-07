@@ -24,7 +24,7 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 - ✅ Listar las redes con SSID, canal y RSSI, ordenadas por intensidad de señal, usando **escaneo pasivo** (`src/wifi/escaner_wifi.*`).
 - ✅ Desplazarse por la lista con el botón: corto para bajar, largo para escanear de nuevo.
 - ✅ Marcar las redes ocultas y las abiertas.
-- ⬜ **Antes de la fase 6:** cambiar a la tabla de particiones `huge_app.csv`. Con el WiFi, el programa ya ocupa el 59 % de los 1.25 MB disponibles, y el stack de BLE suma unos 400 a 500 KB.
+- ✅ **Antes de la fase 6:** cambiar a la tabla de particiones `huge_app.csv`. Con el WiFi, el programa ya ocupa el 59 % de los 1.25 MB disponibles, y el stack de BLE suma unos 400 a 500 KB.
 - **Aprendes:** `WiFi.scanNetworks()`, qué es el RSSI (en dBm) y qué son los canales de 2.4 GHz.
 
 ## Fase 3 — Reglas de sospecha
@@ -49,13 +49,17 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 - 🟡 Localizador: RSSI en grande, barra y tendencia con dos promedios exponenciales (~0.5 s y ~3 s, umbral ±2.5 dB), mostrada con símbolo, palabra y color.
 - 🟡 Correlación: gráfico de 22.5 s (4 muestras por segundo) dibujado en un sprite. Se detecta un "PICO" cuando los últimos 2 s superan el doble de la base y al menos 5 KB/s más.
 - ✅ Accesibilidad: la selección se marca con un marco amarillo sobre fondo negro, en vez del relleno gris, que tenía poco contraste en el panel IPS.
+- ⬜ **Pendiente de prueba del usuario:** tendencia y pico con una videollamada.
 - ⬜ Validar con una cámara real: ¿el pico aparece de forma confiable al mover la mano o al apagar la luz?
 - **Aprendes:** filtrado de señales, cómo dibujar sin parpadeo (*sprites*) y cómo diseñar la interfaz para un solo botón.
 
 ## Fase 6 — BLE
-- ⬜ Escanear dispositivos BLE con NimBLE.
-- ⬜ Detectar rastreadores (AirTag, Tile, SmartTag) por sus datos de fabricante.
-- ⬜ Coordinar el uso compartido de la radio entre WiFi y BLE.
+- 🟡 Escaneo BLE **pasivo** con NimBLE 1.4.3, compilado solo con el rol de observador (`src/ble/`).
+- 🟡 Rastreadores: Apple Find My (tipo 0x12; lejos del dueño si el largo es 0x19), Tile (UUID 0xFEED), SmartTag (0xFD5A) y Google FMDN (0xFEAA, trama 0x40/0x41, marcado como "posible").
+- 🟡 "Te acompaña": +15 puntos si un rastreador se ve durante 10 minutos o más.
+- 🟡 Modos excluyentes (REDES → DISPOSITIVOS → BLUETOOTH): cada uno tiene la radio el 100 % del tiempo.
+- 🟡 Rastreo BLE: solo localizador (en BLE no hay tráfico que correlacionar).
+- ⬜ Validar con un AirTag o un Tile real. La firma de Google FMDN está sin verificar.
 - **Aprendes:** los anuncios BLE, las direcciones aleatorias y la coexistencia de radios.
 
 ## Fase 7 — Pulido

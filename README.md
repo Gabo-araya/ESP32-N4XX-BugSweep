@@ -10,10 +10,11 @@ Este firmware convierte una placa ESP32 barata con pantalla LCD en un detector d
 
 El dispositivo:
 
-- ✅ Lista las redes WiFi y los dispositivos BLE cercanos.
+- ✅ Lista las redes WiFi, los dispositivos conectados a ellas (modo promiscuo) y los dispositivos Bluetooth LE.
 - ✅ Marca como sospechosos los nombres de red y los fabricantes típicos de cámaras.
 - ✅ Detecta dispositivos que suben video de forma continua (en modo promiscuo).
-- ✅ Ayuda a ubicar un dispositivo según la intensidad de su señal.
+- ✅ Detecta rastreadores BLE: Apple Find My (AirTag), Tile, Samsung SmartTag y la red de Google.
+- ✅ Ayuda a ubicar un dispositivo según la intensidad de su señal y comprueba si su tráfico reacciona al movimiento (correlación).
 - ❌ **No** detecta WiFi de 5 GHz, cámaras que solo graban en una tarjeta SD, micrófonos analógicos de radiofrecuencia ni micrófonos que usan la red celular.
 
 Un resultado limpio **no garantiza** que no haya dispositivos ocultos. Complementa la revisión con una linterna (para ver el reflejo de un lente) y con un detector de radiofrecuencia de banda ancha. Ver [los límites de la detección](docs/ANTECEDENTES.md#3-límites-físicos-de-la-detección).
@@ -59,6 +60,16 @@ python3 -I tools/generar_oui.py
 ```
 
 Para agregar un fabricante, edita la lista `FABRICANTES` del script y vuelve a ejecutarlo.
+
+## Verificar que es solo receptor
+
+El firmware no incluye funciones para transmitir tramas WiFi arbitrarias, ni para anunciarse o conectarse por BLE: NimBLE se compila solo con el rol de observador. Se puede comprobar en el binario:
+
+```bash
+pio run
+nm -C .pio/build/esp32-lcd19/firmware.elf | grep -ciE "esp_wifi_80211_tx|ble_gap_adv_start|ble_gap_connect"
+# debe imprimir 0
+```
 
 ## Documentación
 

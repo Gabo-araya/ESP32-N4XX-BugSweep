@@ -6,6 +6,16 @@
 
 enum class Nivel : uint8_t { NINGUNO, BAJO, MEDIO, ALTO };
 
+// Rastreadores BLE reconocibles por su anuncio.
+enum class Rastreador : uint8_t {
+  NINGUNO,
+  FIND_MY_SEPARADO,   // Apple Find My (AirTag u otro) LEJOS de su dueño
+  FIND_MY_CERCA,      // Apple Find My con su dueño cerca
+  TILE,
+  SMARTTAG,           // Samsung
+  GOOGLE_FMDN,        // red Find My Device de Google (posible)
+};
+
 struct InfoFabricante {
   const char *nombre;     // nullptr si no está en la tabla
   Categoria categoria;
@@ -30,6 +40,10 @@ unsigned totalPrefijosOui();   // tamaño de la tabla generada
 Evaluacion evaluarRed(const String &ssid, const uint8_t bssid[6]);
 // Dispositivo (estación) visto en modo promiscuo.
 Evaluacion evaluarEstacion(const uint8_t mac[6], bool perfilVideo);
+// Dispositivo Bluetooth LE. Solo las direcciones públicas tienen fabricante (OUI).
+Evaluacion evaluarBle(const String &nombre, const uint8_t mac[6], bool publica, Rastreador r,
+                      uint32_t minutosVisto);
+const char *textoRastreador(Rastreador r);   // "AirTag/FindMy", "Tile"...
 
 // Símbolo y texto para mostrar el nivel sin depender del color.
 const char *simboloNivel(Nivel n);   // "!!", "!", "?", ""

@@ -95,6 +95,8 @@ Es la tabla `default.csv` estándar de Arduino-ESP32:
 
 Fuente: 💾
 
+> **En este proyecto** se usa `huge_app.csv`: `nvs` 20 KB, `otadata` 8 KB, `app0` **3 MB** (sin `app1` ni OTA) y `spiffs` 896 KB. La NVS queda en el mismo lugar y conserva lo que tenía.
+
 ### 3.2 Firmware de fábrica
 
 - `app0` contiene un sketch compilado con el **IDE de Arduino en Windows**, con el núcleo **arduino-esp32 2.0.11** (ESP-IDF v4.4.5), el **12 de junio de 2023**.

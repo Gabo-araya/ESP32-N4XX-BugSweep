@@ -51,6 +51,8 @@ const char *motivoCategoria(Categoria c) {
 
 constexpr uint8_t PUNTOS_OCULTA = 15;
 constexpr uint8_t PUNTOS_VIDEO = 45;
+constexpr uint8_t PUNTOS_ACOMPANA = 15;      // rastreador visto por 10+ minutos
+constexpr uint32_t MINUTOS_ACOMPANA = 10;
 
 // "HD-WiFi_Cam 01" -> "hdwificam01"
 String normalizar(const String &s) {
@@ -69,6 +71,20 @@ void agregarMotivo(Evaluacion &e, const char *m) {
 }  // namespace
 
 // Partes comunes a redes y dispositivos -------------------------------------
+// Nombre (SSID o nombre BLE): solo cuenta el patrón de mayor puntaje.
+static void sumarNombre(Evaluacion &e, const String &nombre, uint16_t &total) {
+  const String n = normalizar(nombre);
+  const PatronSsid *mejor = nullptr;
+  for (const PatronSsid &p : PATRONES) {
+    const bool coincide = p.modo == Modo::PREFIJO ? n.startsWith(p.texto) : n.indexOf(p.texto) >= 0;
+    if (coincide && (!mejor || p.puntos > mejor->puntos)) mejor = &p;
+  }
+  if (mejor) {
+    total += mejor->puntos;
+    agregarMotivo(e, mejor->motivo);
+  }
+}
+
 static void sumarFabricante(Evaluacion &e, const uint8_t mac[6], uint16_t &total) {
   e.macAleatoria = esMacAleatoria(mac);
   if (e.macAleatoria) {
@@ -116,16 +132,7 @@ Evaluacion evaluarRed(const String &ssid, const uint8_t bssid[6]) {
     total += PUNTOS_OCULTA;
     agregarMotivo(e, "Red oculta");
   } else {
-    const String n = normalizar(ssid);
-    const PatronSsid *mejor = nullptr;
-    for (const PatronSsid &p : PATRONES) {
-      const bool coincide = p.modo == Modo::PREFIJO ? n.startsWith(p.texto) : n.indexOf(p.texto) >= 0;
-      if (coincide && (!mejor || p.puntos > mejor->puntos)) mejor = &p;
-    }
-    if (mejor) {
-      total += mejor->puntos;
-      agregarMotivo(e, mejor->motivo);
-    }
+    sumarNombre(e, ssid, total);
   }
 
   // 2) Fabricante
@@ -142,6 +149,44 @@ Evaluacion evaluarEstacion(const uint8_t mac[6], bool perfilVideo) {
     agregarMotivo(e, "Sube datos sin parar (como video)");
   }
   sumarFabricante(e, mac, total);
+  cerrar(e, total);
+  return e;
+}
+
+namespace {
+struct InfoRastreador { uint8_t puntos; const char *motivo; const char *corto; };
+
+InfoRastreador infoRastreador(Rastreador r) {
+  switch (r) {
+    case Rastreador::FIND_MY_SEPARADO: return {70, "Rastreador Find My lejos de su dueno", "AirTag/FindMy"};
+    case Rastreador::FIND_MY_CERCA:    return {25, "Accesorio Find My (dueno cerca)", "FindMy (dueno)"};
+    case Rastreador::TILE:             return {60, "Rastreador Tile", "Tile"};
+    case Rastreador::SMARTTAG:         return {60, "Rastreador Samsung SmartTag", "SmartTag"};
+    case Rastreador::GOOGLE_FMDN:      return {50, "Posible rastreador red Google", "Google FMDN"};
+    case Rastreador::NINGUNO:          break;
+  }
+  return {0, "", ""};
+}
+}  // namespace
+
+const char *textoRastreador(Rastreador r) { return infoRastreador(r).corto; }
+
+Evaluacion evaluarBle(const String &nombre, const uint8_t mac[6], bool publica, Rastreador r,
+                      uint32_t minutosVisto) {
+  Evaluacion e;
+  uint16_t total = 0;
+  if (r != Rastreador::NINGUNO) {
+    const InfoRastreador i = infoRastreador(r);
+    total += i.puntos;
+    agregarMotivo(e, i.motivo);
+    if (minutosVisto >= MINUTOS_ACOMPANA && r != Rastreador::FIND_MY_CERCA) {
+      total += PUNTOS_ACOMPANA;
+      agregarMotivo(e, "Te acompana hace 10+ minutos");
+    }
+  }
+  if (!nombre.isEmpty()) sumarNombre(e, nombre, total);
+  // En BLE la dirección aleatoria es lo normal: no se anota como motivo.
+  if (publica) sumarFabricante(e, mac, total);
   cerrar(e, total);
   return e;
 }

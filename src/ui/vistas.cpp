@@ -127,7 +127,7 @@ void prepararRastreo(TFT_eSPI &tft, TFT_eSprite &g, const String &titulo, uint8_
   ayuda(tft, "Pulsa para salir");
 }
 
-void rastreo(TFT_eSPI &tft, TFT_eSprite &g, const Seguimiento &s) {
+void rastreo(TFT_eSPI &tft, TFT_eSprite &g, const Seguimiento &s, bool conTrafico) {
   // --- Izquierda: localizador ---
   const bool senal = s.conSenal();
   tft.setTextFont(4);
@@ -155,6 +155,19 @@ void rastreo(TFT_eSPI &tft, TFT_eSprite &g, const Seguimiento &s) {
   tft.fillRect(bx, by, bw, bh, TFT_BLACK);
   tft.fillRect(bx, by, lleno, bh, TFT_WHITE);
   tft.drawRect(bx, by, bw, bh, TFT_LIGHTGREY);
+
+  if (!conTrafico) {   // BLE: no hay tráfico útil que medir, solo señal
+    tft.setTextFont(2);
+    tft.setTextPadding(GRAF_W);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString("Camina y sigue la", GRAF_X, 40);
+    tft.drawString("tendencia de la senal.", GRAF_X, 58);
+    tft.drawString("El objeto esta donde", GRAF_X, 84);
+    tft.drawString("la senal es mas alta", GRAF_X, 102);
+    tft.drawString("(cerca de -40 dBm).", GRAF_X, 120);
+    tft.setTextPadding(0);
+    return;
+  }
 
   // --- Derecha: gráfico de bytes/s transmitidos ---
   uint32_t maximo = 2000;                          // escala mínima: 2 KB/s

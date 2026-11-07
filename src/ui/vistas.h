@@ -34,7 +34,8 @@ void ayuda(TFT_eSPI &tft, const char *texto);
 
 // Rastreo: señal grande + tendencia + gráfico de tráfico (en un sprite, sin parpadeo).
 void prepararRastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const String &titulo, uint8_t canal);
-void rastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const Seguimiento &s);
+// conTrafico = false (BLE): solo localizador; el gráfico muestra la señal en vez de bytes.
+void rastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const Seguimiento &s, bool conTrafico);
 constexpr int GRAF_X = 132, GRAF_Y = 26, GRAF_W = 184, GRAF_H = 94;
 
 // Utilidades de formato compartidas
