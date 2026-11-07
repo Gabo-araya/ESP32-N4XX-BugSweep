@@ -116,3 +116,5 @@ Editor: VS Code con la extensión **PlatformIO IDE**.
 | 2026-11-07 | Se analiza el respaldo de fábrica: tabla de particiones `default.csv` de Arduino, un sketch compilado con arduino-esp32 2.0.11 (12 de junio de 2023) sobre restos de ESP-AT, y una NVS con claves de WiFi. Se crea `FICHA_DISPOSITIVO.md`. |
 | 2026-11-07 | **Paso 1 funcionando**: la compilación y la subida funcionan, la pantalla muestra el título y los colores, y el monitor serie avanza. Retroiluminación confirmada con `HIGH`. Problema resuelto: `Permission denied` en `/dev/ttyUSB0`, porque el grupo `dialout` exige volver a iniciar sesión. |
 | 2026-11-07 | Una foto confirma la pantalla: 170×320, colores RGB correctos, sin inversión y sin desplazamiento. **Paso 1 cerrado.** |
+| 2026-11-07 | Paso 1b cerrado: módulo `Boton` reutilizable (antirrebote y pulsación corta/larga). El repositorio se publica en GitHub. |
+| 2026-11-07 | Fase 2: escáner WiFi **pasivo** (`scanNetworks(async, ocultas, pasivo=true, 300 ms/canal)`). **Decisión:** no se usa escaneo activo, porque emite *probe requests* (contradice el diseño solo receptor del PRD y delata al dispositivo). |
