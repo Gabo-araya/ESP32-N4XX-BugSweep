@@ -28,6 +28,8 @@ inline bool esMacAleatoria(const uint8_t mac[6]) { return mac[0] & 0x02; }
 InfoFabricante buscarFabricante(const uint8_t mac[6]);
 unsigned totalPrefijosOui();   // tamaño de la tabla generada
 Evaluacion evaluarRed(const String &ssid, const uint8_t bssid[6]);
+// Dispositivo (estación) visto en modo promiscuo.
+Evaluacion evaluarEstacion(const uint8_t mac[6], bool perfilVideo);
 
 // Símbolo y texto para mostrar el nivel sin depender del color.
 const char *simboloNivel(Nivel n);   // "!!", "!", "?", ""

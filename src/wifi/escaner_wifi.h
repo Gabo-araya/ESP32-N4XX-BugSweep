@@ -20,6 +20,7 @@ public:
 
   void begin();
   void iniciar();          // lanza un barrido de los canales 1..13
+  void detener();          // cancela un barrido en curso (para ceder la radio al sniffer)
   bool actualizar();       // true justo cuando termina un barrido con resultados nuevos
   bool escaneando() const { return escaneando_; }
 

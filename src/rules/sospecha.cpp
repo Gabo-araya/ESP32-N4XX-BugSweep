@@ -50,6 +50,7 @@ const char *motivoCategoria(Categoria c) {
 }
 
 constexpr uint8_t PUNTOS_OCULTA = 15;
+constexpr uint8_t PUNTOS_VIDEO = 45;
 
 // "HD-WiFi_Cam 01" -> "hdwificam01"
 String normalizar(const String &s) {
@@ -66,6 +67,28 @@ void agregarMotivo(Evaluacion &e, const char *m) {
 }
 
 }  // namespace
+
+// Partes comunes a redes y dispositivos -------------------------------------
+static void sumarFabricante(Evaluacion &e, const uint8_t mac[6], uint16_t &total) {
+  e.macAleatoria = esMacAleatoria(mac);
+  if (e.macAleatoria) {
+    agregarMotivo(e, "MAC aleatoria: fabricante oculto");
+    return;
+  }
+  e.fabricante = buscarFabricante(mac);
+  if (e.fabricante.nombre) {
+    total += puntosCategoria(e.fabricante.categoria);
+    agregarMotivo(e, motivoCategoria(e.fabricante.categoria));
+  }
+}
+
+static void cerrar(Evaluacion &e, uint16_t total) {
+  e.puntaje = total > 100 ? 100 : total;
+  e.nivel = e.puntaje >= 60 ? Nivel::ALTO
+          : e.puntaje >= 30 ? Nivel::MEDIO
+          : e.puntaje >= 15 ? Nivel::BAJO
+                            : Nivel::NINGUNO;
+}
 
 unsigned totalPrefijosOui() { return TOTAL_OUI; }
 
@@ -106,22 +129,20 @@ Evaluacion evaluarRed(const String &ssid, const uint8_t bssid[6]) {
   }
 
   // 2) Fabricante
-  e.macAleatoria = esMacAleatoria(bssid);
-  if (e.macAleatoria) {
-    agregarMotivo(e, "MAC aleatoria: fabricante oculto");
-  } else {
-    e.fabricante = buscarFabricante(bssid);
-    if (e.fabricante.nombre) {
-      total += puntosCategoria(e.fabricante.categoria);
-      agregarMotivo(e, motivoCategoria(e.fabricante.categoria));
-    }
-  }
+  sumarFabricante(e, bssid, total);
+  cerrar(e, total);
+  return e;
+}
 
-  e.puntaje = total > 100 ? 100 : total;
-  e.nivel = e.puntaje >= 60 ? Nivel::ALTO
-          : e.puntaje >= 30 ? Nivel::MEDIO
-          : e.puntaje >= 15 ? Nivel::BAJO
-                            : Nivel::NINGUNO;
+Evaluacion evaluarEstacion(const uint8_t mac[6], bool perfilVideo) {
+  Evaluacion e;
+  uint16_t total = 0;
+  if (perfilVideo) {
+    total += PUNTOS_VIDEO;
+    agregarMotivo(e, "Sube datos sin parar (como video)");
+  }
+  sumarFabricante(e, mac, total);
+  cerrar(e, total);
   return e;
 }
 

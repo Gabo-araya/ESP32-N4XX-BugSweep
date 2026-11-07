@@ -1,10 +1,9 @@
 #include "escaner_wifi.h"
 #include <WiFi.h>
 #include <algorithm>
+#include <esp_wifi.h>
 
-void EscanerWifi::begin() {
-  WiFi.mode(WIFI_STA);   // modo estación, pero nunca nos conectamos a ninguna red
-  WiFi.disconnect();
+void EscanerWifi::begin() {   // requiere radio::iniciar() antes
   redes_.reserve(MAX_REDES);
 }
 
@@ -13,6 +12,13 @@ void EscanerWifi::iniciar() {
   // async=true, mostrar ocultas=true, PASIVO=true, tiempo por canal
   WiFi.scanNetworks(true, true, true, MS_POR_CANAL);
   escaneando_ = true;
+}
+
+void EscanerWifi::detener() {
+  if (!escaneando_) return;
+  esp_wifi_scan_stop();
+  WiFi.scanDelete();
+  escaneando_ = false;
 }
 
 bool EscanerWifi::actualizar() {

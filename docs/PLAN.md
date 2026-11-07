@@ -28,18 +28,20 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 - **Aprendes:** `WiFi.scanNetworks()`, qué es el RSSI (en dBm) y qué son los canales de 2.4 GHz.
 
 ## Fase 3 — Reglas de sospecha
-- 🟡 Lista de patrones de SSID de cámaras, con puntaje y motivo (`src/rules/sospecha.cpp`).
-- 🟡 Tabla OUI generada desde el registro oficial del IEEE con `tools/generar_oui.py`: 757 prefijos de 24 fabricantes, en flash.
-- 🟡 Puntaje de 0 a 100 con sus motivos. Niveles `!!` ALTA, `!` MEDIA y `?` BAJA (símbolo + texto + color).
-- 🟡 Escaneo continuo, cursor y vista de detalle que se actualiza sola.
+- ✅ Lista de patrones de SSID de cámaras, con puntaje y motivo (`src/rules/sospecha.cpp`).
+- ✅ Tabla OUI generada desde el registro oficial del IEEE con `tools/generar_oui.py`: 757 prefijos de 24 fabricantes, en flash.
+- ✅ Puntaje de 0 a 100 con sus motivos. Niveles `!!` ALTA, `!` MEDIA y `?` BAJA (símbolo + texto + color).
+- ✅ Escaneo continuo, cursor y vista de detalle que se actualiza sola.
 - ⬜ Calibrar los pesos con dispositivos reales (cámara de prueba y redes del entorno).
 - **Aprendes:** qué es un OUI, la memoria flash frente a la RAM, y cómo separar los datos del código.
 
 ## Fase 4 — Modo promiscuo
-- ⬜ Capturar tramas de gestión y de datos con `esp_wifi_set_promiscuous_rx_cb`.
-- ⬜ Saltar entre los canales 1 a 13.
-- ⬜ Tabla de estaciones: MAC, punto de acceso (BSSID), bytes por segundo y RSSI.
-- ⬜ Detectar el perfil de streaming: tasa de subida alta y sostenida.
+- 🟡 Capturar tramas de gestión y de datos con `esp_wifi_set_promiscuous_rx_cb`, pasarlas por una cola de FreeRTOS y procesarlas en `loop()` (`src/sniffer/`).
+- 🟡 Saltar entre los canales 1 a 13, 200 ms por canal, con ventanas de unos 5 s.
+- 🟡 Tabla de estaciones: MAC, red (BSSID y SSID tomado de los beacons), subida y bajada en B/s (escaladas por el tiempo escuchado en su canal) y RSSI.
+- 🟡 Perfil de video: subida de 15 KB/s o más durante 3 ventanas seguidas (unos 15 s). Suma 45 puntos.
+- 🟡 Interfaz: la fila 0 de la lista sirve para cambiar entre REDES y DISPOSITIVOS.
+- ⬜ Calibrar el umbral con una cámara real y con dispositivos que no son cámaras (televisor, celular en videollamada).
 - **Aprendes:** el formato de las tramas 802.11, las funciones de *callback* que corren en una interrupción (ISR), las colas de FreeRTOS y la concurrencia.
 
 ## Fase 5 — Correlación y localizador
