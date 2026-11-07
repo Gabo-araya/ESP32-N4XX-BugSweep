@@ -66,8 +66,10 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 - ⬜ Puntuación de sospecha (0–100) con sus motivos.
 - ⬜ Salida serie en JSON por línea.
 - ⬜ Revisión guiada para personas sin experiencia, paso a paso en la pantalla.
+- ⬜ **Pendiente (requiere hardware):** pruebas de BLE con un AirTag, Tile o SmartTag.
 - ⬜ Pruebas con una cámara de referencia (un ESP32-CAM propio) y medición de las métricas del PRD.
-- ⬜ Integración continua: compilar en GitHub Actions con PlatformIO.
+- ❌ ~~Integración continua con GitHub Actions~~: descartada por decisión del autor. En su lugar, el README tiene instrucciones completas para compilar.
+- ✅ README con instrucciones para compilar en Linux, Windows y macOS (VS Code y terminal), problemas frecuentes, guía de uso y estructura del código.
 - ⬜ Publicar la versión v1.0.
 
 ## Organización del código (a medida que crezca)
