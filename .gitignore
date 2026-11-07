@@ -1,0 +1,14 @@
+# Compilación de PlatformIO
+.pio/
+.vscode/
+compile_commands.json
+
+# Volcados de flash: pueden contener credenciales WiFi/NVS y firmware de terceros
+*.bin
+
+# Páginas guardadas de la tienda (contenido con copyright de terceros y rastreadores)
+docs/*.html
+docs/*_files/
+
+# Notas sueltas de trabajo
+docs/info_claude.md
