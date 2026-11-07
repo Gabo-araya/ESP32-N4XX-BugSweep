@@ -66,18 +66,22 @@ void Sniffer::begin() {
   aps_.reserve(MAX_APS);
 }
 
-void Sniffer::iniciar() {
+void Sniffer::iniciar(uint8_t canalFijo) {
   if (activo_) return;
   wifi_promiscuous_filter_t filtro = {};
   filtro.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
   esp_wifi_set_promiscuous_filter(&filtro);
   esp_wifi_set_promiscuous_rx_cb(alRecibir);
   esp_wifi_set_promiscuous(true);
-  canal_ = 1;
+  canalFijo_ = canalFijo;
+  canal_ = canalFijo ? canalFijo : 1;
   esp_wifi_set_channel(canal_, WIFI_SECOND_CHAN_NONE);
   tCanal_ = millis();
   saltos_ = 0;
   memset(msEscuchado_, 0, sizeof msEscuchado_);
+  // Descartar bytes acumulados en otro modo: si no, la primera ventana los
+  // dividiría por un tiempo corto y daría falsas alarmas de video.
+  for (Estacion &e : estaciones_) e.bytesSubidaV = e.bytesBajadaV = 0;
   activo_ = true;
 }
 
@@ -96,6 +100,8 @@ bool Sniffer::actualizar() {
   // Procesa lo acumulado, con tope para no acaparar el loop.
   Trama t;
   for (int i = 0; i < 64 && xQueueReceive(cola, &t, 0) == pdTRUE; i++) procesar(t);
+
+  if (canalFijo_) return seguimiento_.tick();
 
   if (millis() - tCanal_ < MS_POR_CANAL) return false;
   saltarCanal();
@@ -181,6 +187,10 @@ Estacion *Sniffer::estacion(const uint8_t mac[6], bool crear) {
 }
 
 void Sniffer::procesar(const Trama &t) {
+  // Rastreo: todo lo que TRANSMITE el objetivo (a2), sea estación o AP.
+  // Una cámara en modo AP manda su video como AP, así que también cuenta.
+  if (seguimiento_.esObjetivo(t.a2)) seguimiento_.registrar(t.largo, t.rssi);
+
   if (t.tipo == TIPO_GESTION) {
     if (t.subtipo == SUB_BEACON) { registrarAp(t); return; }
     if (t.subtipo != SUB_ASOC_REQ && t.subtipo != SUB_REASOC_REQ && t.subtipo != SUB_PROBE_REQ) return;

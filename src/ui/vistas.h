@@ -4,6 +4,7 @@
 #include <TFT_eSPI.h>
 #include <vector>
 #include "rules/sospecha.h"
+#include "sniffer/seguimiento.h"
 
 namespace vistas {
 
@@ -30,6 +31,11 @@ void barraEstado(TFT_eSPI &tft, const String &izquierda, const String &derecha);
 void lista(TFT_eSPI &tft, const std::vector<Fila> &filas, size_t seleccion, const char *vacio);
 void detalle(TFT_eSPI &tft, const Detalle &d);
 void ayuda(TFT_eSPI &tft, const char *texto);
+
+// Rastreo: señal grande + tendencia + gráfico de tráfico (en un sprite, sin parpadeo).
+void prepararRastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const String &titulo, uint8_t canal);
+void rastreo(TFT_eSPI &tft, TFT_eSprite &grafico, const Seguimiento &s);
+constexpr int GRAF_X = 132, GRAF_Y = 26, GRAF_W = 184, GRAF_H = 94;
 
 // Utilidades de formato compartidas
 String macTexto(const uint8_t m[6]);

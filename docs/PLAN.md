@@ -36,17 +36,20 @@ Leyenda: ✅ hecho · 🟡 en curso · ⬜ pendiente
 - **Aprendes:** qué es un OUI, la memoria flash frente a la RAM, y cómo separar los datos del código.
 
 ## Fase 4 — Modo promiscuo
-- 🟡 Capturar tramas de gestión y de datos con `esp_wifi_set_promiscuous_rx_cb`, pasarlas por una cola de FreeRTOS y procesarlas en `loop()` (`src/sniffer/`).
-- 🟡 Saltar entre los canales 1 a 13, 200 ms por canal, con ventanas de unos 5 s.
-- 🟡 Tabla de estaciones: MAC, red (BSSID y SSID tomado de los beacons), subida y bajada en B/s (escaladas por el tiempo escuchado en su canal) y RSSI.
-- 🟡 Perfil de video: subida de 15 KB/s o más durante 3 ventanas seguidas (unos 15 s). Suma 45 puntos.
-- 🟡 Interfaz: la fila 0 de la lista sirve para cambiar entre REDES y DISPOSITIVOS.
+- ✅ Capturar tramas de gestión y de datos con `esp_wifi_set_promiscuous_rx_cb`, pasarlas por una cola de FreeRTOS y procesarlas en `loop()` (`src/sniffer/`).
+- ✅ Saltar entre los canales 1 a 13, 200 ms por canal, con ventanas de unos 5 s.
+- ✅ Tabla de estaciones: MAC, red (BSSID y SSID tomado de los beacons), subida y bajada en B/s (escaladas por el tiempo escuchado en su canal) y RSSI.
+- ✅ Perfil de video: subida de 15 KB/s o más durante 3 ventanas seguidas (unos 15 s). Suma 45 puntos.
+- ✅ Interfaz: la fila 0 de la lista sirve para cambiar entre REDES y DISPOSITIVOS.
 - ⬜ Calibrar el umbral con una cámara real y con dispositivos que no son cámaras (televisor, celular en videollamada).
 - **Aprendes:** el formato de las tramas 802.11, las funciones de *callback* que corren en una interrupción (ISR), las colas de FreeRTOS y la concurrencia.
 
 ## Fase 5 — Correlación y localizador
-- ⬜ Fijar un dispositivo y mostrar un gráfico de su tráfico en tiempo real.
-- ⬜ Fijar un dispositivo y mostrar una barra grande de RSSI con su tendencia (suavizado por media móvil).
+- 🟡 Modo RASTREO desde el detalle (pulsación larga). El sniffer se queda fijo en el canal del objetivo y sigue todo lo que este **transmite**, sea estación o AP (`src/sniffer/seguimiento.*`).
+- 🟡 Localizador: RSSI en grande, barra y tendencia con dos promedios exponenciales (~0.5 s y ~3 s, umbral ±2.5 dB), mostrada con símbolo, palabra y color.
+- 🟡 Correlación: gráfico de 22.5 s (4 muestras por segundo) dibujado en un sprite. Se detecta un "PICO" cuando los últimos 2 s superan el doble de la base y al menos 5 KB/s más.
+- ✅ Accesibilidad: la selección se marca con un marco amarillo sobre fondo negro, en vez del relleno gris, que tenía poco contraste en el panel IPS.
+- ⬜ Validar con una cámara real: ¿el pico aparece de forma confiable al mover la mano o al apagar la luz?
 - **Aprendes:** filtrado de señales, cómo dibujar sin parpadeo (*sprites*) y cómo diseñar la interfaz para un solo botón.
 
 ## Fase 6 — BLE

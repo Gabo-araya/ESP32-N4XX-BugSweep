@@ -3,6 +3,7 @@
 #pragma once
 #include <Arduino.h>
 #include <vector>
+#include "seguimiento.h"
 
 struct Estacion {
   uint8_t mac[6];
@@ -39,12 +40,17 @@ public:
   static constexpr uint8_t VENTANAS_VIDEO = 3;       // ≈ 15 s sostenidos
 
   void begin();             // crea la cola; la radio debe estar iniciada (radio::iniciar)
-  void iniciar();
+  // canalFijo = 0: salta por los canales 1..13 (descubrir).
+  // canalFijo > 0: se queda en ese canal (rastreo: escucha el 100 % del tiempo).
+  void iniciar(uint8_t canalFijo = 0);
   void detener();
+  Seguimiento &seguimiento() { return seguimiento_; }
+  const Seguimiento &seguimiento() const { return seguimiento_; }
   bool activo() const { return activo_; }
 
   // Llamar en cada loop(): procesa tramas y salta de canal.
-  // Devuelve true cuando se cierra una ventana (momento de redibujar).
+  // Devuelve true cuando hay algo nuevo que dibujar: una ventana cerrada
+  // (modo saltos) o una muestra nueva del seguimiento (modo canal fijo).
   bool actualizar();
 
   const std::vector<Estacion> &estaciones() const { return estaciones_; }
@@ -63,7 +69,9 @@ private:
 
   std::vector<Estacion> estaciones_;
   std::vector<PuntoAcceso> aps_;
+  Seguimiento seguimiento_;
   bool activo_ = false;
+  uint8_t canalFijo_ = 0;
   uint8_t canal_ = 1;
   uint32_t tCanal_ = 0;
   uint16_t saltos_ = 0;

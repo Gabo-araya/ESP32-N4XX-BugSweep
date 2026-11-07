@@ -1,8 +1,9 @@
-// ESP32-N4XX-BugSweep — Fase 4: redes (escaneo pasivo) + dispositivos (modo promiscuo).
+// ESP32-N4XX-BugSweep — redes (escaneo pasivo), dispositivos (promiscuo) y rastreo.
 //
 // Un solo botón (BOOT):
 //   Lista:   corto = bajar el cursor | largo = abrir (detalle, o cambiar de modo en la 1.ª fila)
-//   Detalle: corto o largo = volver
+//   Detalle: corto = volver          | largo = rastrear (localizador + correlación)
+//   Rastreo: corto o largo = salir
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <algorithm>
@@ -16,12 +17,13 @@
 constexpr uint8_t PIN_BOTON = 0;   // BOOT, junto al USB-C
 
 TFT_eSPI tft;
+TFT_eSprite grafico(&tft);   // gráfico del rastreo: se dibuja fuera de pantalla y se copia de una vez
 Boton boton(PIN_BOTON);
 EscanerWifi escaner;
 Sniffer sniffer;
 
 enum class Modo { REDES, DISPOSITIVOS };
-enum class Vista { LISTA, DETALLE };
+enum class Vista { LISTA, DETALLE, RASTREO };
 Modo modo = Modo::REDES;
 Vista vista = Vista::LISTA;
 
@@ -97,7 +99,7 @@ String nombreRed(const RedWifi &r) {
 
 String nombreFabricante(const Evaluacion &e) {
   if (e.macAleatoria) return "aleatoria";
-  return e.fabricante.nombre ? e.fabricante.nombre : "desconocido";
+  return e.fabricante.nombre ? e.fabricante.nombre : "otro";
 }
 
 String lineaFabricante(const Evaluacion &e) {
@@ -123,6 +125,10 @@ String redDeDispositivo(const Estacion &e) {
 // ---------------------------------------------------------------- dibujo ---
 
 void dibujar() {
+  if (vista == Vista::RASTREO) {
+    vistas::rastreo(tft, grafico, sniffer.seguimiento());
+    return;
+  }
   if (vista == Vista::LISTA) {
     std::vector<vistas::Fila> filas;
     vistas::Fila menu;
@@ -155,13 +161,13 @@ void dibujar() {
   } else {
     const Dispositivo &x = dispositivos[i];
     d = {nombreDispositivo(x), &x.eval,
-         {lineaFabricante(x.eval) + "  " + vistas::macTexto(x.est.mac).substring(0, 8),
+         {lineaFabricante(x.eval),
           redDeDispositivo(x.est),
           String("Sube ") + vistas::tasaCorta(x.est.subidaBps) + "B/s  Baja " + vistas::tasaCorta(x.est.bajadaBps) + "B/s",
           String("Canal ") + x.est.canal + "  Senal " + x.est.rssi + " dBm  " + x.est.tramas + " tramas"}};
   }
   vistas::detalle(tft, d);
-  vistas::ayuda(tft, "Pulsa para volver   (se actualiza solo)");
+  vistas::ayuda(tft, "Corto: volver   Largo: RASTREAR");
 }
 
 // ----------------------------------------------------------------- serie ---
@@ -207,6 +213,32 @@ void cambiarModo() {
   seleccion = 0;
 }
 
+// Se fija en el canal del objetivo y sigue todo lo que transmite.
+void entrarRastreo() {
+  const size_t i = seleccion - 1;
+  const uint8_t *mac = macDe(i);
+  const uint8_t canal = modo == Modo::REDES ? redes[i].red.canal : dispositivos[i].est.canal;
+  const String titulo = modo == Modo::REDES ? nombreRed(redes[i].red) : nombreDispositivo(dispositivos[i]);
+
+  escaner.detener();
+  sniffer.detener();
+  sniffer.seguimiento().iniciar(mac);
+  sniffer.iniciar(canal);
+  vista = Vista::RASTREO;
+  vistas::prepararRastreo(tft, grafico, titulo, canal);
+  Serial.printf("[rastreo] %s en canal %u (%s)\n", vistas::macTexto(mac).c_str(), canal, titulo.c_str());
+}
+
+// Vuelve al modo anterior (escaneo de redes o sniffer con saltos).
+void salirRastreo() {
+  sniffer.detener();
+  sniffer.seguimiento().detener();
+  if (modo == Modo::REDES) escaner.iniciar();
+  else sniffer.iniciar();
+  vista = Vista::DETALLE;
+  Serial.println("[rastreo] fin");
+}
+
 void setup() {
   Serial.begin(115200);
   delay(200);
@@ -226,7 +258,14 @@ void setup() {
 void loop() {
   bool redibujar = false;
 
-  if (modo == Modo::REDES) {
+  if (vista == Vista::RASTREO) {
+    if (sniffer.actualizar()) {          // una muestra nueva cada 250 ms
+      const Seguimiento &s = sniffer.seguimiento();
+      Serial.printf("[rastreo] %4d dBm  tend %+d  ahora %6.0f B/s  base %6.0f B/s%s\n", s.rssi(),
+                    s.tendencia(), s.bpsActual(), s.bpsBase(), s.pico() ? "  PICO" : "");
+      redibujar = true;
+    }
+  } else if (modo == Modo::REDES) {
     if (escaner.actualizar()) { procesarRedes(); imprimirRedes(); redibujar = true; }
     if (!escaner.escaneando()) escaner.iniciar();   // continuo (y reintenta si falla)
   } else if (sniffer.actualizar()) {
@@ -237,19 +276,24 @@ void loop() {
 
   const Boton::Evento ev = boton.leer();
   if (ev != Boton::Evento::Ninguno) {
-    if (vista == Vista::DETALLE) {
-      vista = Vista::LISTA;
-    } else if (ev == Boton::Evento::Corto) {
-      seleccion = (seleccion + 1) % (cantidad() + 1);
-    } else if (seleccion == 0) {
-      cambiarModo();
-    } else {
-      vista = Vista::DETALLE;
+    bool limpiar = true;   // prepararRastreo() ya limpia y dibuja su propio marco
+    switch (vista) {
+      case Vista::RASTREO:
+        salirRastreo();
+        break;
+      case Vista::DETALLE:
+        if (ev == Boton::Evento::Largo) { entrarRastreo(); limpiar = false; }
+        else vista = Vista::LISTA;
+        break;
+      case Vista::LISTA:
+        if (ev == Boton::Evento::Corto) seleccion = (seleccion + 1) % (cantidad() + 1);
+        else if (seleccion == 0) cambiarModo();
+        else vista = Vista::DETALLE;
+        break;
     }
-    tft.fillScreen(TFT_BLACK);
+    if (limpiar) tft.fillScreen(TFT_BLACK);
     redibujar = true;
   }
-
   if (redibujar) dibujar();
   delay(2);
 }
